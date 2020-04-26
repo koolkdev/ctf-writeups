@@ -1,5 +1,9 @@
 # [Web] Mooz Chat - 550
 
+Written by kernel and @oranav on behalf of @pastenctf.
+
+## Overview
+
 We have the site [https://chat.mooz.pwni.ng/](https://chat.mooz.pwni.ng/). We have the binary of the server.  
 We have two challenges:  
 1. Tom Nook and Isabelle have been exchanging text messages over Mooz recently. Is Tom Nook looking for something besides bells these days?
