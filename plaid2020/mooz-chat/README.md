@@ -503,25 +503,62 @@ H: b'020001163d7825b385bacb33ee587fcb44452852dba955fe66bc42d84a3a2b36930748100e6
 H: b'020001169dc5601fbe8ecf24aab04e02a4b5832601b106546e94d5b575e180a7e59574345167f8702b6c338b33e66b2255700f86b6e0830b8421bff77ceafa0a782e892a6013bce26fa7899b572e01e094383a5d66f4c4f9b7dcf0b7d7453df973b5e9fcafcf310d69ac3dc0c9a7f54c186cf6ae3e6b94499d9993948ced4f9c32c49760820cbc07fa5f0bb7fd5b8a43d0dc5a946053eb58f74263eb66d1f5ce34976bf41374d235598d0a661b0511f517ace2993fb3ce81b781a58a2229ebbeaa923874d695578af5bff48807662cc4b8c98a7f4cfea81fd4338e9a461d3612b11a4a74a6c1b18e7f95b98dfab8e65eedfde3f1547daefc4e319f2f4b33d646bc7bfdc18271c03554197d78d3c424177031e86f55ebdc2f258c489bfca188661f6f2bfd'
 ....
 ```
-  
-So the parameters of the DH are:  
+
+So the parameters for the DH are:
 ```
-g=2  
-p=17384709708392335523  
-gx=3627033298973761161  
-q=8692354854196167761
+g=2
+p=17384709708392335523
+g**x=3627033298973761161
 ```
-  
+
 ```
-gy = 8464545346795901567
+g**y = 8464545346795901567
 ```
-using GNFS program we can get: (I created connection until I got parameters that the program could crack)  
+
+64-bit Diffie-Hellman is breakable within reasonable time on PCs using [the GNFS algorithm](https://en.wikipedia.org/wiki/General_number_field_sieve) for solving the discrete log problem.
+Since the algorithm is quite complex, we just looked for a pre-written implementation; after fiddling with a few tools, [GDLOG](https://sourceforge.net/projects/gdlog/) deemed to be the winner.
+
+Working with GDLOG is nontrivial though. First, we need to prepare a task file:
 ```
-x=5286236525714760900
-y=5980053691502474284
+g: 2
+p: 17384709708392335523
+t: 8464545346795901567
+q: 8692354854196167761
 ```
-Success!  
-So the shared key is: `7c35faf0dad285c9`  
+
+`g` is the generator (which is fixed to 2 in our case); `p` is the field prime (chosen by the server); `t` is `g**x mod p`, which is the server's public key. `q` is a bit puzzling: the GNFS algorithm solves a slightly more generic problem, however by using `q = (p-1)/2` it solves the discrete log problem.
+
+After running GDLOG on this task (using `gdlog.py taskfile`), we get:
+```
+__main__.GdlogException: Configuration keys lc0Fact not found.
+                         Please add these keys to the job file (see README for more details).
+```
+
+GDLOG now populated some more parameters in our task configuration file, among them is:
+```
+f0:[ -72542  -1788608  2188457 ]
+```
+
+This is a polynomial chosen by GDLOG; it expects `lc0Fact`, which is the factorization of the most significant coefficient of `f0`, and can be calculated simply by running `factor 2188457`. We are also missing `p1Fact` which is the factorization of `p-1` (which, similarly, is given by `factor 17384709708392335522`). Therefore, we add these lines to the task configuration file:
+```
+lc0Fact: [ 41 53377 ]
+p1Fact: [ 2 8692354854196167761 ]
+```
+
+Running `gdlog.py taskfile` again, we finally get our solution:
+```
+Logarithm of the 8464545346795901567 to the 2 is 5980053691502474284. Checking result: ok
+```
+
+We get that `x=5286236525714760900`. Now we have `x`, `g`, `p`, and `g**y`. To get the shared secret `g**(x*y) % p` we can just calculate `(g**y) ** x % p`:
+
+```python
+In [1]: hex(pow(gy, x, p))
+Out[1]: '0x7c35faf0dad285c9'
+```
+
+And we broke the shared secret.
+
 Let's try to decrypt the first packet:  
 ```python
 AES.new(hashlib.sha1(b"0123425234234fsdfsdr3242" + codecs.decode("7c35faf0dad285c9", "hex")).digest()[:16]).decrypt(codecs.decode("e091a81789b94c2515cabd51d2675ab2d44caf684aba48a6d2bdace8c565169f2d8eb0d554a5dae710b1af3fadad9fa3c2f615fe284df33fc2a14d5c108eb91e5242a4fb792ce055a4db9241fac569243186d1c603418c4898797bda7b3132d01fd06a8888d47f0107986cbcceeaf801461d3b9c074fc2900b208a851bd096b245469f58f82624ddc828537f4db915ab45469f58f82624ddc828537f4db915ab45469f58f82624ddc828537f4db915abefa493c12ebbaf9dd1cd486b6b2cd28438daaae613c5fef4354192282a40af1cee376b67fdacd8bbb7dc0e69ecd64005ae39dc0bea26414e038e654625ea1087429ec256c152c5c6204ac1d07c1972da622710b3d765c8ac48cd2e3e74f4bdad093c1d0800be79802773c355520f2687845943f3057c3a37aa29c9c1d4ecc6075db9ab38423559f13534f33d46567aca73cc0c84819a8112e86bf8064f6811dd3055e78c944ab1c77b0c82c2a90785d3697d436abadc7a7e103237253446436deee1f605dcf89d423629ab65634817b48aed151d4797806b7fa127a8e8a01541de5625bc6ab4248ae6c018995bcf4d66e872a21a207625af3014370d2d00f931c817b4cd5591fa5a1fc9228e42bf5762", "hex"))
